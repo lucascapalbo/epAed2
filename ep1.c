@@ -14,11 +14,14 @@
 bool inicializaGrafo(TipoGrafo *grafo, int nv){
     if(nv <= 0) return false;
     grafo->listaAdj = (TipoApontador*)malloc( nv * sizeof (TipoAresta));
+    grafo->listaConexo = (int**)malloc(nv * sizeof(int));
     int v;
     grafo->numArestas = 0;
     grafo->numVertices = nv;
-    for (v = 0; v < 7; v++)
+    for (v = 0; v < nv; v++)
         grafo->listaAdj[v] = NULL;
+    grafo->listaConexo[v] = NULL;
+    grafo->componentesConexos = 0;
     return true;
 }
 /*
@@ -34,11 +37,9 @@ TipoApontador novaAresta(int v1, TipoApontador prox, float peso){
     return novo;
 }
 
-void insereAresta(int v1, int v2, TipoPeso peso, TipoGrafo *grafo,int direcionado){
+void insereAresta(int v1, int v2, TipoPeso peso, TipoGrafo *grafo){
     //condicoes
     grafo->listaAdj[v1] = novaAresta(v2,grafo->listaAdj[v1],peso);
-    if(direcionado == 0)
-    grafo->listaAdj[v2] = novaAresta(v1, grafo->listaAdj[v2], peso);
 }
 /*
  bool existeAresta(int v1, int v2, TipoGrafo *grafo):
@@ -61,7 +62,15 @@ bool existeAresta(int v1, int v2, TipoGrafo *grafo){
  Se a aresta existia, coloca o peso dessa aresta em "peso" e retorna true,
  caso contrario retorna false (e "peso" È inalterado).
  */
-bool removeAresta(int v1, int v2, TipoPeso* peso, TipoGrafo *grafo);
+bool removeAresta(int v1, int v2,int * pesoDosRemovidos, TipoGrafo *grafo , int * verticesRemovidos){
+    if(existeAresta(v1, v2, grafo) == false) return false;
+    TipoApontador apagar = grafo->listaAdj[v1];
+    while (apagar != NULL) {
+        apagar = apagar->prox;
+    } if(apagar ==  NULL) return false;
+    free(apagar);
+    return true;
+}
 
 /*
  bool listaAdjVazia(int v, TipoGrafo* grafo):
@@ -81,7 +90,14 @@ TipoApontador primeiroListaAdj(int v, TipoGrafo *grafo);
  Retorna o proximo vertice adjacente a v, partindo do vertice "prox" adjacente a v
  ou NULL se a lista de adjacencia tiver terminado sem um novo proximo.
  */
-TipoApontador proxListaAdj(int v, TipoGrafo *grafo, TipoApontador prox);
+TipoApontador proxListaAdj(int v, TipoGrafo *grafo, TipoApontador prox){
+    TipoApontador atual;
+    if(prox == NULL)
+        return NULL;
+    atual = prox->prox;
+    if(atual == NULL) return NULL;
+    return atual;
+}
 
 
 /*
@@ -98,8 +114,8 @@ void imprimeGrafo(TipoGrafo *grafo){
         atual = grafo->listaAdj[i];
         printf("v%i:",i);
         while(atual){
-        printf("(adj: %i , peso: %f)",atual->vdest,atual->peso);
-         atual = atual->prox;
+            printf("(adj: %i , peso: %f)",atual->vdest,atual->peso);
+            atual = atual->prox;
         }
         printf("\n");
     }
@@ -141,69 +157,192 @@ void liberaGrafo (TipoGrafo *grafo);
  0: erro na leitura do arquivo
  */
 int leGrafo(char* nomearq, TipoGrafo *grafo){
-        int  x, y;
-        float z;
-        int ordem , aresta,direcionado;
-        
-        FILE *arq = fopen(nomearq, "r");
-        if(arq == NULL){
-            return 0;
-        }
-    fscanf(arq, "%d",&direcionado);
-    grafo->direcionado = direcionado;
+    int  x, y;
+    float z;
+    int ordem , aresta;
+    
+    FILE *arq = fopen(nomearq, "r");
+    if(arq == NULL){
+        return 0;
+    }
     fscanf(arq,"%d %d",&ordem , &aresta);
+    printf("%d %d \n",ordem,aresta);
     ordem++;;
     inicializaGrafo(grafo, ordem);
     grafo->numArestas = aresta;
     
     while(!feof(arq)){
         fscanf(arq,"%i %i %f\n",&x, &y, &z);
-        //printf("%d %d %f\n",x, y, z);
-        insereAresta(x, y, z, grafo,direcionado);
+        printf("%d %d %f\n",x, y, z);
+        insereAresta(x, y, z, grafo);
+        insereAresta(y, x, z, grafo);
     }
+    printf("\n");
     fclose(arq);
     return 1;
 }
-void buscaProfundidade(TipoGrafo *grafo, int verticeInicial){
-   /* Aloca vetores cor, tdesc, tterm, antecessor com tamanho grafo->nrVertices tempo ← 0;
-    Para cada vertice v
-    cor[v] ← branco; tdesc[v] = tterm[v] = 0; antecessor[v] ← -1; Para cada vertice v
-    Se cor[v] = branco visitaBP(v, grafo, &tempo, cor, tdesc, tterm, antecessor);
-    cor{ 0 = branco, 1= cinza, 2 = preto}
-    */
+void buscaProfundidade(TipoGrafo *grafo, int verticeInicial , bool dfsPath){
+    /* Aloca vetores cor, tdesc, tterm, antecessor com tamanho grafo->nrVertices tempo ← 0;
+     Para cada vertice v
+     cor[v] ← branco; tdesc[v] = tterm[v] = 0; antecessor[v] ← -1; Para cada vertice v
+     Se cor[v] = branco visitaBP(v, grafo, &tempo, cor, tdesc, tterm, antecessor);
+     cor{ 0 = branco, 1= cinza, 2 = preto}
+     */
     int cor[grafo->numVertices],tdesc[grafo->numVertices],tterm[grafo->numVertices],tempo = 0;
     int antecessor[grafo->numVertices];
+    int caminho[grafo->numVertices];
     cor[verticeInicial] = 0;
+    int resposta[grafo->numVertices];
+    int u;
+    for (u = 0; u<grafo->numVertices; u++) {
+        cor[u] = 0;
+    }
     tdesc[verticeInicial] = tterm[verticeInicial] = 0;
     antecessor[verticeInicial] = -1;
-    if(cor[verticeInicial] == 0)
-        visitaBP(verticeInicial, grafo, &tempo, cor, tdesc, tterm, antecessor);
-    int j;
-    for (j=0; j<grafo->numVertices; j++) {
-        if(cor[j] == 0 || cor[j] == 1 || cor[j] == 2){
-            printf("vertice : %d ,cor: %d \n", j , cor[j]);
+    tempo = 0;
+    int i = 0;
+    int z = 0;
+    for (u = verticeInicial; u < grafo->numVertices; u++){
+        // quando ele faz o loop, procura por partes nao conexas, adiciona novo componentes pras partes achadas.
+        if(cor[u] == 0){
+            int novoComponente[grafo->numVertices];
+            caminho[i] = u;
+            i++;
+            if(dfsPath == true)
+                imprimeCaminho(caminho, i);
+            visitaBP(u, grafo, &tempo, cor, tdesc, tterm, antecessor, caminho , &i,dfsPath);
+            if(grafo->componentesConexos >= 0){
+                if(dfsPath == false){
+                    grafo->componentesConexos++;
+                }
+                adicionaComponente(caminho, i , novoComponente , resposta , &z);
+                i = 0;
+            }
+        }
+    }        if(dfsPath == false)
+        imprimeCaminho(resposta,z);
+}
+
+void componentesConexos (TipoGrafo *grafo, int verticeInicial , bool dfsPath , bool articulacao){
+    // quando dfsPath == false, ele nao printa o caminho. mesmo codigo do busca profundidade, pois
+    // nao dava pra salvar os arrays com cada componente.
+    int cor[grafo->numVertices],tdesc[grafo->numVertices],tterm[grafo->numVertices],tempo = 0;
+    int antecessor[grafo->numVertices];
+    int caminho[grafo->numVertices];
+    cor[verticeInicial] = 0;
+    int resposta[grafo->numVertices];
+    int u;
+    for (u = 0; u<grafo->numVertices; u++) {
+        cor[u] = 0;
+    }
+    grafo->componentesConexos =1;
+    tdesc[verticeInicial] = tterm[verticeInicial] = 0;
+    antecessor[verticeInicial] = -1;
+    tempo = 0;
+    int i = 0;
+    int z = 0;
+    for (u = verticeInicial; u < grafo->numVertices; u++){
+        // quando ele faz o loop, procura por partes nao conexas, adiciona novo componentes pras partes achadas.
+        if(cor[u] == 0){
+            int novoComponente[grafo->numVertices];
+            caminho[i] = u;
+            i++;
+            visitaBP(u, grafo, &tempo, cor, tdesc, tterm, antecessor, caminho , &i,dfsPath);
+            if(articulacao == false){
+                printf("C%i: ",grafo->componentesConexos);
+                imprimeCaminho(caminho, i);
+            } if(grafo->componentesConexos >= 0){
+                if( i > 1)
+                    grafo->componentesConexos++;
+                adicionaComponente(caminho, i , novoComponente , resposta , &z);
+                i = 0;
+            }
         }
     }
 }
-void visitaBP(int v, TipoGrafo *grafo, int *tempo,  int *cor,  int *tdesc,  int *tterm,  int * antecessor){
-    /*cor[v] ← cinza; tdesc[v] ← ++(*tempo);
-     Para cada vertice u da lista de adjacência de v
-     Se u é branco
-     antecessor[u] ← v;
-     visitaBP(u, grafo, &tempo, cor, tdesc, tterm, antecessor);
-     tterm ← ++(*tempo);
-     cor[v] ← preto;*/
-    cor[v] = 1;
-    tdesc[v] = ++(*tempo);
-    int u; // iterador para proximo
-    for (u=0; u<grafo->numVertices; u++) {
-        if( existeAresta(v, u, grafo) &&cor[u] == 0){
-            antecessor[u] = v;
-            visitaBP(u, grafo, tempo, cor, tdesc, tterm, antecessor);
-        }
-        if(existeAresta(v, u, grafo) && cor[u] == 1) //se o prox ja foi visitado
-            cor[u] = 2;
+
+void  adicionaComponente(int* caminho , int numeroVertices , int * componente , int *resposta , int * iterador){
+    int i;
+    for(i = 0; i < numeroVertices;i++){
+        componente[i] = caminho[i];
+        if(numeroVertices > 1)
+            resposta[*iterador] = caminho[i];
+        caminho[i] = 0;
+        (*iterador)++;
     }
+}
+bool articulacao(TipoGrafo* grafo , int verticeInicial , int * verticesRemovidos, int *pesoDosRemovidos){
+    int comparaComponente = grafo->componentesConexos;
+    int iterador = 0;
+    removeVertice(grafo, verticeInicial , verticesRemovidos , pesoDosRemovidos , &iterador);
+    componentesConexos(grafo, verticeInicial, false, false);
+    int componente2 = grafo->componentesConexos;
+    for (int i = 0; i<iterador; i++) {
+        insereAresta(verticeInicial, verticesRemovidos[i], pesoDosRemovidos[i], grafo);
+        insereAresta(verticesRemovidos[i], verticeInicial, pesoDosRemovidos[i], grafo);
+    } grafo->componentesConexos = comparaComponente;
+    if(comparaComponente < componente2){
+        return true;
+    } return false;
+}
+void imprimeArticulacao(TipoGrafo* grafo, int verticeInicial){
+    int  verticesRemovidos[grafo->numVertices] , pesoDosRemovidos[grafo->numVertices];
+    int articulado[grafo->numVertices];
+    printf("Articulation Vertices: \n");
+    for (int aux = verticeInicial; aux < grafo->numVertices; aux++) {
+        if(articulacao(grafo, aux, verticesRemovidos,pesoDosRemovidos) == true){
+            articulado[aux] = aux;
+            printf("%i " , articulado[aux]);
+        }
+    } printf("\n");
+}
+void removeVertice (TipoGrafo *grafo , int vertice, int * verticesRemovidos , int * pesoDosRemovidos , int * i){
+    int * verticesRemovidos2[grafo->numArestas];
+    TipoApontador p = grafo->listaAdj[vertice];
+    int peso = 0;
+    int vertices = 0;
+    while (p != NULL) {
+        removeAresta(vertice, p->vdest, &peso, grafo, &vertices);
+        removeAresta(p->vdest, vertice, &peso, grafo, verticesRemovidos2[*i]);
+        verticesRemovidos[*i] = p->vdest;
+        pesoDosRemovidos[*i] = p->peso;
+        (*i)++;
+        p = p->prox;
+    }
+    grafo->listaAdj[vertice] = NULL;
+}
+
+void visitaBP(int v, TipoGrafo *grafo, int *tempo,  int *cor,  int *tdesc,  int *tterm,  int * antecessor , int * caminho, int* i, bool dfsPath){
+    if(cor[v] == 0)
+        cor[v] =1;
+    tdesc[v] = ++(*tempo);
+    int u;
+    TipoApontador atual;
+    atual = grafo->listaAdj[v];
+    while (atual != NULL) {
+        u = atual->vdest;
+        atual = proxListaAdj(v, grafo, atual);
+        antecessor[u]=v;
+        if(cor[u] == 0){
+            caminho[*i] = u;
+            (*i)++;
+            if(dfsPath == true)
+                imprimeCaminho(caminho, *i);
+            visitaBP(u, grafo, tempo, cor, tdesc, tterm, antecessor, caminho, i, dfsPath);
+        } if(cor[u] == 1 || cor[u] == 2){
+            u = antecessor[u];
+            cor[u] = 2;
+            tterm[u] = ++(*tempo);
+        }
+    }
+}
+
+void imprimeCaminho(int*caminho , int u){
+    int i;
+    for (i = 0; i< u; i++) {
+        if(caminho[i] != 0 || caminho[i+1] != 0)
+            printf("%d ", caminho[i]);
+    } printf("\n");
 }
 
 /*
