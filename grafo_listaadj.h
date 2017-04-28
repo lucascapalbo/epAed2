@@ -23,6 +23,19 @@ typedef struct taresta {
 
 typedef TipoAresta* TipoApontador;
 
+typedef struct aux {
+    int id;
+    float prioridade;
+    struct aux* ant;
+    struct aux* prox;
+} REGISTRO, * PONT; //pont Ž o nome que se deu para o ponteiro de registro.
+
+typedef struct {
+    int maxRegistros;
+    PONT fila;
+    PONT* arranjo;
+} FILADEPRIORIDADE, * PFILA;
+
 /*
  tipo estruturado grafo:
  vetor de listas de adjacencia (cada posicao contem o ponteiro
@@ -60,7 +73,7 @@ bool inicializaGrafo(TipoGrafo *grafo, int nv);
  Nao verifica se a aresta ja existe.
  */
 void insereAresta(int v1, int v2, TipoPeso peso, TipoGrafo *grafo);
-
+bool Articulacao ( TipoGrafo * grafo,int v);
 
 /*
  bool existeAresta(int v1, int v2, TipoGrafo *grafo):
@@ -74,7 +87,7 @@ bool existeAresta(int v1, int v2, TipoGrafo *grafo);
  Se a aresta existia, coloca o peso dessa aresta em "peso" e retorna true,
  caso contrario retorna false (e "peso" é inalterado).
  */
-bool removeAresta(int v1, int v2,int * pesoDosRemovidos, TipoGrafo *grafo , int * verticesRemovidos);
+bool removeAresta(int v1, int v2,int * pesoDosRemovidos, TipoGrafo *grafo);
 
 /*
  bool listaAdjVazia(int v, TipoGrafo* grafo):
@@ -82,8 +95,13 @@ bool removeAresta(int v1, int v2,int * pesoDosRemovidos, TipoGrafo *grafo , int 
  */
 bool listaAdjVazia(int v, TipoGrafo *grafo);
 
+void visitaLargura(int vertice, TipoGrafo * grafo, int * cor, int * antecessor, int * distancia, PFILA fila, int * caminho , bool bfsPath);
+
+void insertionSort(int vetorDesordenado[], int tamanhoVetor );
+
 bool articulacao(TipoGrafo * grafo , int verticeInicial, int * verticesRemovidos, int *pesoDosRemovidos);
-void removeVertice(TipoGrafo * grafo , int vertice, int * verticesRemovidos , int * pesoDosRemovidos , int * i);
+
+void removeVertice(TipoGrafo *grafo , int v);
 /*
  TipoApontador primeiroListaAdj(int v, TipoGrafo* grafo):
  Retorna o endereco do primeiro vertice da lista de adjacencia de v
@@ -186,6 +204,20 @@ void dfsR( TipoGrafo *G, int v, int *pre, int *conta);
  TipoApontador existeERetornaAresta(int v1, int v2, TipoGrafo *grafo):
  Retorna um apontador para a aresta (v1,v2) se ela existir e NULL caso Contrario.
  */
-TipoApontador existeERetornaAresta(int v1, int v2, TipoGrafo *grafo);
+TipoApontador existeERetornaAresta(int v1, int v2, TipoGrafo *grafo, TipoApontador* anterior);
 
+/********************************************************************************/
 
+PFILA criarFila(int max);
+
+int tamanho(PFILA f);
+
+bool inserirElemento(PFILA f, int id, float prioridade);
+
+bool aumentarPrioridade(PFILA f, int id, float novaPrioridade);
+
+bool reduzirPrioridade(PFILA f, int id, float novaPrioridade);
+
+PONT removerElemento(PFILA f);
+
+bool consultarPrioridade(PFILA f, int id, float* resposta);

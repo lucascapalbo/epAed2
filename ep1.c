@@ -62,12 +62,12 @@ bool existeAresta(int v1, int v2, TipoGrafo *grafo){
  Se a aresta existia, coloca o peso dessa aresta em "peso" e retorna true,
  caso contrario retorna false (e "peso" È inalterado).
  */
-bool removeAresta(int v1, int v2,int * pesoDosRemovidos, TipoGrafo *grafo , int * verticesRemovidos){
-    if(existeAresta(v1, v2, grafo) == false) return false;
-    TipoApontador apagar = grafo->listaAdj[v1];
-    while (apagar != NULL) {
-        apagar = apagar->prox;
-    } if(apagar ==  NULL) return false;
+bool removeAresta(int v1, int v2,int * pesoDosRemovidos, TipoGrafo *grafo){
+    TipoApontador apagar , anterior;
+    apagar =existeERetornaAresta(v1, v2, grafo,&anterior);
+    if(apagar == NULL) return false;
+    if(anterior == NULL) grafo->listaAdj[v1] = apagar->prox;
+    else anterior->prox = apagar->prox;
     free(apagar);
     return true;
 }
@@ -250,14 +250,103 @@ void componentesConexos (TipoGrafo *grafo, int verticeInicial , bool dfsPath , b
             visitaBP(u, grafo, &tempo, cor, tdesc, tterm, antecessor, caminho , &i,dfsPath);
             if(articulacao == false){
                 printf("C%i: ",grafo->componentesConexos);
+                insertionSort(caminho,i);
                 imprimeCaminho(caminho, i);
             } if(grafo->componentesConexos >= 0){
-                if( i > 1)
-                    grafo->componentesConexos++;
+                grafo->componentesConexos++;
                 adicionaComponente(caminho, i , novoComponente , resposta , &z);
                 i = 0;
             }
         }
+    }
+}
+void buscaEmLargura(TipoGrafo * grafo , int raiz, bool bfsPath){
+    int cor[grafo->numVertices], distancia[grafo->numVertices];
+    int antecessor[grafo->numVertices];
+    int caminho[grafo->numVertices];
+    FILADEPRIORIDADE fila = *criarFila(grafo->numVertices);
+    cor[raiz] = 0;
+    for (int i = 0; i < grafo->numVertices; i++) {
+        cor[i] = 0;
+        antecessor[i] = -1;
+        distancia[i]=0;
+    }
+    for (int i = 0; i < grafo->numVertices; i++) {
+        if(cor[i] == 0)
+            visitaLargura(i,grafo, cor, antecessor, distancia ,&fila,caminho,bfsPath);
+    }
+}
+/*
+ BuscaEmLargura
+ escolha uma raiz s de G
+ marque s
+ insira s em F
+ enquanto F não está vazia faça
+ seja v o primeiro vértice de F
+ para cada w ∈ listaDeAdjacência de v faça
+ se w não está marcado então
+ visite aresta entre v e w
+ marque w
+ insira w em F
+ senao se w ∈ F entao
+ visite aresta entre v e w
+ fim se
+ fim para
+ retira v de F
+ fim enquanto
+ */
+
+void visitaLargura(int vertice, TipoGrafo * grafo, int * cor, int * antecessor, int * distancia, PFILA fila , int * caminho , bool bfsPath){
+    cor[vertice] = 1;
+    distancia[vertice] = 0;
+    inserirElemento(fila, vertice, 1);
+    TipoApontador anterior;
+    int resposta[grafo->numVertices];
+    int u = 0;
+    int z = 0;
+    while (tamanho(fila) != 0) {
+        for (int i = vertice; i < grafo->numVertices; i++) {
+            if(cor[i] == 0){ //nao esta marcado
+                TipoApontador aresta= existeERetornaAresta(vertice, i, grafo, &anterior);
+                if(aresta != NULL){ //existeAresta
+                    cor[i] = 1;
+                    antecessor[i] = vertice;
+                    int novoComponente[grafo->numVertices];
+                    caminho[u] = i;
+                    u++;
+                    if(bfsPath == true)
+                        imprimeCaminho(caminho, u);
+                    visitaLargura(i, grafo, cor, antecessor, distancia, fila, caminho,bfsPath);
+                    if(grafo->componentesConexos >= 0){
+                        if(bfsPath == false){
+                            grafo->componentesConexos++;
+                        }
+                        adicionaComponente(caminho, u , novoComponente , resposta , &z);
+                        u = 0;
+                    }
+                }
+            }
+        } removerElemento(fila);
+        if(bfsPath == false)
+            imprimeCaminho(resposta,z);
+    }
+}
+void insertionSort(int vetorDesordenado[], int tamanhoVetor )
+{
+    int i, j, valorAtual;
+    
+    for( j=1; j < tamanhoVetor; j++ )
+    {
+        valorAtual = vetorDesordenado[j];
+        i = j-1;
+        
+        while(i >= 0 && vetorDesordenado[i] > valorAtual)
+        {
+            vetorDesordenado[i+1] = vetorDesordenado[i];
+            i--;
+        }
+        
+        vetorDesordenado[i+1] = valorAtual;
     }
 }
 
@@ -265,53 +354,66 @@ void  adicionaComponente(int* caminho , int numeroVertices , int * componente , 
     int i;
     for(i = 0; i < numeroVertices;i++){
         componente[i] = caminho[i];
-        if(numeroVertices > 1)
-            resposta[*iterador] = caminho[i];
+        resposta[*iterador] = caminho[i];
         caminho[i] = 0;
         (*iterador)++;
     }
 }
-bool articulacao(TipoGrafo* grafo , int verticeInicial , int * verticesRemovidos, int *pesoDosRemovidos){
-    int comparaComponente = grafo->componentesConexos;
-    int iterador = 0;
-    removeVertice(grafo, verticeInicial , verticesRemovidos , pesoDosRemovidos , &iterador);
-    componentesConexos(grafo, verticeInicial, false, false);
-    int componente2 = grafo->componentesConexos;
-    for (int i = 0; i<iterador; i++) {
-        insereAresta(verticeInicial, verticesRemovidos[i], pesoDosRemovidos[i], grafo);
-        insereAresta(verticesRemovidos[i], verticeInicial, pesoDosRemovidos[i], grafo);
-    } grafo->componentesConexos = comparaComponente;
-    if(comparaComponente < componente2){
+
+bool Articulacao ( TipoGrafo * grafo,int v){
+    int i,ordem;
+    if(v<0 || v>grafo->numVertices){
+        printf("\n\tVertice inexistente\n");
+        return false;
+    }
+    ordem = grafo->numVertices;
+    TipoGrafo grafo_aux;
+    inicializaGrafo(&grafo_aux, ordem);
+    
+    grafo_aux.componentesConexos = 0;
+    for(i = 0; i < grafo->numVertices; i++){
+        TipoApontador p = grafo->listaAdj[i];
+        while (p != NULL) {
+            insereAresta(i, p->vdest, p->peso, &grafo_aux);
+            p = p->prox;
+        }
+    }
+    removeVertice(&grafo_aux, v);
+    if(v == 1)
+        componentesConexos(grafo, 1, false, true);
+    if(v == 1){ //primeiro vertice
+        componentesConexos(&grafo_aux, 2, false, true);
+        grafo_aux.componentesConexos--;
+    }else{
+        if(v==5)
+            componentesConexos(&grafo_aux, 1, false, true);
+        else
+            componentesConexos(&grafo_aux, 1, false, true);
+    }
+    if((grafo->componentesConexos) < grafo_aux.componentesConexos)
         return true;
-    } return false;
+    else return false;
 }
 void imprimeArticulacao(TipoGrafo* grafo, int verticeInicial){
-    int  verticesRemovidos[grafo->numVertices] , pesoDosRemovidos[grafo->numVertices];
     int articulado[grafo->numVertices];
     printf("Articulation Vertices: \n");
     for (int aux = verticeInicial; aux < grafo->numVertices; aux++) {
-        if(articulacao(grafo, aux, verticesRemovidos,pesoDosRemovidos) == true){
+        if(Articulacao(grafo, aux) == true){
             articulado[aux] = aux;
             printf("%i " , articulado[aux]);
         }
     } printf("\n");
 }
-void removeVertice (TipoGrafo *grafo , int vertice, int * verticesRemovidos , int * pesoDosRemovidos , int * i){
-    int * verticesRemovidos2[grafo->numArestas];
-    TipoApontador p = grafo->listaAdj[vertice];
-    int peso = 0;
-    int vertices = 0;
-    while (p != NULL) {
-        removeAresta(vertice, p->vdest, &peso, grafo, &vertices);
-        removeAresta(p->vdest, vertice, &peso, grafo, verticesRemovidos2[*i]);
-        verticesRemovidos[*i] = p->vdest;
-        pesoDosRemovidos[*i] = p->peso;
-        (*i)++;
-        p = p->prox;
+void removeVertice (TipoGrafo *grafo , int v){
+    TipoApontador apagar;
+    apagar = grafo->listaAdj[v];
+    while (apagar!=NULL) {
+        apagar = grafo->listaAdj[v];
+        if(apagar!=NULL)
+            grafo->listaAdj[v] = apagar->prox;
+        free(apagar);
     }
-    grafo->listaAdj[vertice] = NULL;
 }
-
 void visitaBP(int v, TipoGrafo *grafo, int *tempo,  int *cor,  int *tdesc,  int *tterm,  int * antecessor , int * caminho, int* i, bool dfsPath){
     if(cor[v] == 0)
         cor[v] =1;
@@ -344,7 +446,6 @@ void imprimeCaminho(int*caminho , int u){
             printf("%d ", caminho[i]);
     } printf("\n");
 }
-
 /*
  fimListaAdj(v, p, Grafo): indica se o ponteiro atual p  chegou ao
  fim da lista de adjacencia de v (p == NULL).
@@ -381,6 +482,181 @@ void recuperaAdj(int v, TipoApontador p, int *u, TipoPeso *peso,
  TipoApontador existeERetornaAresta(int v1, int v2, TipoGrafo *grafo):
  Retorna um apontador para a aresta (v1,v2) se ela existir e NULL caso Contrario.
  */
-TipoApontador existeERetornaAresta(int v1, int v2, TipoGrafo *grafo);
+TipoApontador existeERetornaAresta(int v1, int v2, TipoGrafo *grafo, TipoApontador * anterior){
+    if(grafo->listaAdj[v1] == NULL) return NULL;
+    *anterior = NULL;
+    TipoApontador buscado;
+    buscado = grafo->listaAdj[v1];
+    while (buscado!=NULL) {
+        *anterior = buscado;
+        if(buscado->vdest == v2) return buscado;
+        buscado = buscado->prox;
+    }
+    return NULL;
+}
+
+
+/********************************************************************************/
+//FILA
+PFILA criarFila(int max){
+    PFILA res = (PFILA) malloc(sizeof(FILADEPRIORIDADE));
+    res->maxRegistros = max;
+    res->arranjo = (PONT*) malloc(sizeof(PONT)*max);
+    int i;
+    for (i=0;i<max;i++) res->arranjo[i] = NULL;
+    res->fila = NULL;
+    return res;
+}
+
+bool exibirLog(PFILA f){
+    printf("Log [elementos: %i]\n", tamanho(f));
+    PONT atual = f->fila;
+    while (atual){
+        printf("%p[%i;%f;%p]%p ", atual->ant, atual->id, atual->prioridade, atual, atual->prox);
+        atual = atual->prox;
+    }
+    printf("\n\n");
+    return 0;
+}
+
+int tamanho(PFILA f){
+    PONT end = f->fila;
+    int tam = 0;
+    while (end != NULL){
+        tam++;
+        end = end->prox;
+    }
+    return tam;
+}
+
+PONT buscaSeq(PFILA f, int id){
+    PONT pos = f->fila;
+    while (pos != NULL){
+        if (pos->id == id) return pos;
+        pos = pos->prox;
+    }
+    return NULL;
+}
+
+PONT buscaSeqExc(float prioridade, PFILA f, PONT *ant){ //dado um ponteiro, com uma prioridade,  retorna seu anterior;
+    *ant = NULL;
+    PONT pos = f->fila;
+    while ((pos != NULL) && (pos->prioridade >= prioridade)){
+        *ant = pos;
+        pos = pos->prox;
+    }
+    if ((pos != NULL) && (pos->prioridade == prioridade)) return pos;
+    return NULL;
+} /* buscaSeqExc */
+
+bool inserirElemento(PFILA f, int id, float prioridade){
+    if (id < 0 || id >= f->maxRegistros) return false;//id invalido
+    PONT ant, i;
+    i = buscaSeqExc(prioridade, f, &ant);
+    if(i!= NULL) return false;
+    i = (PONT) malloc(sizeof(REGISTRO));
+    i -> id = id;
+    i->prioridade = prioridade;
+    if(ant == NULL){ //novo elemento sera o primeiro
+        if(f->fila != NULL){
+            f->fila->ant = i;
+        }
+        i->prox = f->fila;
+        f->fila = i;
+    }
+    else {
+        i->prox = ant->prox;
+        ant->prox = i;
+        i->ant = ant;
+        if(i->prox != NULL)
+            i->prox->ant = i;
+    }
+    f->arranjo[id] = i;
+    return true;
+}
+
+bool aumentarPrioridade(PFILA f, int id, float novaPrioridade){
+    if(id < 0 || id > f->maxRegistros) return false;
+    if(buscaSeq(f, id) == NULL) return false;
+    if(buscaSeq(f, id)->prioridade >= novaPrioridade) return false;
+    PONT ant, i;
+    i = buscaSeqExc(novaPrioridade, f, &ant);
+    if(f->arranjo[id]->ant == NULL && ant == NULL){ // ja sou o primeiro, e continuo em primeiro
+        f->arranjo[id]->prioridade = novaPrioridade;
+        return true;
+    }
+    if(ant == NULL){ // sou primeiro elemento
+        if(f->arranjo[id]->ant != NULL)
+            f->arranjo[id]->ant->prox = f->arranjo[id]->prox;
+        f->arranjo[id]->ant = ant;
+        if(f->arranjo[id]->prox != NULL) // caso nao seja o ultimo
+            f->arranjo[id]->prox->ant = f->arranjo[id]->ant;
+        f->arranjo[id]->prox = f->fila;
+        f->arranjo[id]->prox->ant = f->arranjo[id];
+        f->fila = f->arranjo[id];
+    }
+    else {
+        if(f->arranjo[id]->prox != NULL)// nao sou o ultimo
+            f->arranjo[id]->prox->ant = f->arranjo[id]->ant;
+        if (f->arranjo[id]->ant != NULL)
+            f->arranjo[id]->ant->prox = f->arranjo[id]->prox;
+        f->arranjo[id]->prox = ant->prox; // meu novo proximo realocado
+        ant->prox = f->arranjo[id]; // minha nova posicao
+        f->arranjo[id]->ant = ant;
+        if(f->arranjo[id]->prox != NULL) //caso eu nao seja o ultimo.
+            f->arranjo[id]->prox->ant = f->arranjo[id];
+    }
+    f->arranjo[id]->prioridade = novaPrioridade;
+    
+    return true;
+}
+bool reduzirPrioridade(PFILA f, int id, float novaPrioridade){
+    if(id < 0 || id > f->maxRegistros) return false;
+    if(buscaSeq(f, id) == NULL) return false;
+    if(buscaSeq(f, id)->prioridade <= novaPrioridade) return false;
+    PONT ant , i;
+    i = buscaSeqExc(novaPrioridade, f, &ant);
+    if(ant == NULL) // vou estar no primeiro da fila
+    { if(f->arranjo[id]->prox != NULL)
+        f->arranjo[id]->prox->ant = f->arranjo[id]->ant;
+        f->arranjo[id]-> prox = f->fila;
+        f->arranjo[id]->prox->ant = f->arranjo[id];
+        f->fila = f->arranjo[id];
+    }
+    else { // demais posicoes
+        if(f->arranjo[id]->prox != NULL)// nao sou o ultimo
+            f->arranjo[id]->prox->ant = f->arranjo[id]->ant;
+        if(f->arranjo[id]->ant == NULL) // sou o primeiro, com a prioridade antiga
+            f->fila = f->arranjo[id]->prox; //fila tem que apontar para meu proximo
+        if(f->arranjo[id]->prox->ant != NULL)
+            f->arranjo[id]->ant->prox = f->arranjo[id]->prox;
+        f->arranjo[id]->prox = ant->prox; // meu novo proximo realocado
+        ant->prox = f->arranjo[id]; // minha nova posicao
+        f->arranjo[id]->ant = ant;
+        if(f->arranjo[id]->prox != NULL) //caso eu nao seja o ultimo.
+            f->arranjo[id]->prox->ant = f->arranjo[id];
+        
+    }
+    f->arranjo[id]->prioridade = novaPrioridade;
+    return true;
+}
+
+PONT removerElemento(PFILA f){
+    if(f->fila == NULL) return NULL;
+    PONT apagar = f->fila;
+    *apagar = *(f-> fila);
+    f->arranjo[f->fila->id] = NULL;
+    f->fila = f->fila->prox;
+    if(f->fila != NULL)
+        f->fila->ant = NULL;
+    return apagar;
+}
+
+bool consultarPrioridade(PFILA f, int id, float* resposta){
+    if(id< 0 || id > f-> maxRegistros) return false;
+    if(buscaSeq(f, id) == NULL) return false;
+    resposta = &f->arranjo[id]->prioridade;
+    return true;
+}
 
 
